@@ -154,6 +154,24 @@ describe("comparative statics", () => {
 });
 
 describe("warm starts and speed", () => {
+  // Regression guard (machine-independent): a binding temperature cap used to
+  // take ~43,000 evaluations cold and fail to converge from a warm start,
+  // because the penalty kept growing after the constraint was met.
+  it("a binding temperature cap converges in a bounded number of evaluations", () => {
+    const p = withParams({ t2xco2: 3.5, tatm_up: 2.5 });
+    const cold = solveOptimal(p);
+    const prev = solve("opt", DEFAULT);
+    const warm = solveOptimal(p, { warmStart: { miu: prev.path.MIU, s: prev.path.S } });
+    for (const sol of [cold, warm]) {
+      expect(sol.info.converged).toBe(true);
+      expect(sol.info.maxViolation).toBeLessThan(1e-9);
+      expect(sol.info.evaluations).toBeLessThan(12000);
+      expect(Math.max(...sol.path.TATM)).toBeCloseTo(2.5, 8);
+    }
+    expect(Math.abs(warm.path.UTILITY - cold.path.UTILITY)).toBeLessThan(1e-8);
+    expectSeriesClose(warm.scc, cold.scc, "scc", { rtol: 1e-6, atol: 1e-6 * maxAbs(cold.scc), to: 59 });
+  });
+
   it("warm start reaches the cold-start solution with far fewer evaluations", () => {
     const prev = solve("opt", DEFAULT);
     const p = withParams({ t2xco2: 3.1 });

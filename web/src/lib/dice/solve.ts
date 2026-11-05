@@ -41,6 +41,8 @@ export interface SolveOptions {
   warmStart?: Controls;
   /** Feasibility tolerance for state constraints (normalized). */
   ctol?: number;
+  /** Diagnostics: called once per outer (augmented-Lagrangian) iteration. */
+  trace?: (info: { outer: number; innerTol: number; newtonIterations: number; evaluations: number; viol: number; rho: number; message: string }) => void;
 }
 
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -119,6 +121,58 @@ function optimize(prob: Problem, start: Controls, opts: SolveOptions) {
     freeS.forEach((i, k) => (g[freeM.length + k] = r.gradS[i]));
     return r.J;
   };
+  // Exact Hessian of the augmented Lagrangian on the current active set:
+  // finite differences of the smooth Lagrangian J + sum(w g), with the
+  // multipliers w = max(0, lam + rho g) frozen at x, plus the exact
+  // Gauss-Newton term rho * sum(grad g grad g^T) over the active constraints.
+  const gradOf = (pz?: Penalty) => {
+    const r = ev.evaluate(miu, s, pz, damagesOn);
+    const g = new Float64Array(nv);
+    freeM.forEach((i, k) => (g[k] = r.gradMIU[i]));
+    freeS.forEach((i, k) => (g[freeM.length + k] = r.gradS[i]));
+    return g;
+  };
+  const hessianModel = (xv: Float64Array) => {
+    unpack(xv);
+    const e = ev.evaluate(miu, s, pen, damagesOn);
+    const w: Penalty = { rho: 1, lamCCA: new Float64Array(n), lamTATM: new Float64Array(n), linear: true };
+    const active: { cca: boolean; i: number }[] = [];
+    for (let i = 1; i < n; i++) {
+      w.lamCCA[i] = Math.max(0, pen.lamCCA[i] + pen.rho * e.gCCA[i]);
+      w.lamTATM[i] = Math.max(0, pen.lamTATM[i] + pen.rho * e.gTATM[i]);
+      if (w.lamCCA[i] > 0) active.push({ cca: true, i });
+      if (w.lamTATM[i] > 0) active.push({ cca: false, i });
+    }
+    const smooth = (x2: Float64Array, g: Float64Array) => {
+      unpack(x2);
+      const r = ev.evaluate(miu, s, w, damagesOn);
+      if (!Number.isFinite(r.J)) return Infinity;
+      freeM.forEach((i, k) => (g[k] = r.gradMIU[i]));
+      freeS.forEach((i, k) => (g[freeM.length + k] = r.gradS[i]));
+      return r.J;
+    };
+    if (active.length === 0) return { fg: smooth };
+    unpack(xv);
+    const base = gradOf(undefined);
+    const grads = active.map((c) => {
+      const unit: Penalty = { rho: 1, lamCCA: new Float64Array(n), lamTATM: new Float64Array(n), linear: true };
+      (c.cca ? unit.lamCCA : unit.lamTATM)[c.i] = 1;
+      const gj = gradOf(unit);
+      for (let k = 0; k < nv; k++) gj[k] -= base[k];
+      return gj;
+    });
+    return {
+      fg: smooth,
+      addTo: (H: Float64Array, free: number[]) => {
+        const k = free.length;
+        for (const gj of grads) for (let a = 0; a < k; a++) {
+          const va = pen.rho * gj[free[a]];
+          if (va === 0) continue;
+          for (let b = 0; b < k; b++) H[a * k + b] += va * gj[free[b]];
+        }
+      },
+    };
+  };
   const pgtol = opts.pgtol ?? 1e-11;
   for (outer = 1; outer <= 60; outer++) {
     // Inexact inner solves: tighten as the constraint violation shrinks.
@@ -129,27 +183,33 @@ function optimize(prob: Problem, start: Controls, opts: SolveOptions) {
       const r0 = minimizeBox(fg, x, lo, hi, { maxIter: lbIter, ftol: 1e-12, pgtol: 1e-8 });
       x = r0.x; iterations += r0.iterations; evaluations += r0.evaluations;
     }
-    const r = minimizeBoxNewton(fg, x, lo, hi, { pgtol: innerTol, maxIter: 50 });
+    const r = minimizeBoxNewton(fg, x, lo, hi, { pgtol: innerTol, maxIter: 50, hessianModel });
     x = r.x; iterations += r.iterations; evaluations += r.evaluations;
     converged = r.converged;
     unpack(x);
     const e = ev.evaluate(miu, s, pen, damagesOn);
+    const rhoUsed = pen.rho;
+    // Feasibility, and complementarity: a multiplier may only be positive on a
+    // constraint that binds. (The final multipliers come from the exact KKT
+    // solve below, so they need not converge here.)
     viol = 0;
-    let multiplierChange = 0, lamMax = 1;
+    let compl = 0, lamMax = 1;
     for (let i = 1; i < n; i++) {
       viol = Math.max(viol, e.gCCA[i], e.gTATM[i]);
       const lc = Math.max(0, pen.lamCCA[i] + pen.rho * e.gCCA[i]);
       const lt = Math.max(0, pen.lamTATM[i] + pen.rho * e.gTATM[i]);
-      multiplierChange = Math.max(multiplierChange, Math.abs(lc - pen.lamCCA[i]), Math.abs(lt - pen.lamTATM[i]));
+      compl = Math.max(compl, lc * Math.max(0, -e.gCCA[i]), lt * Math.max(0, -e.gTATM[i]));
       lamMax = Math.max(lamMax, lc, lt);
       pen.lamCCA[i] = lc; pen.lamTATM[i] = lt;
     }
-    if (viol <= ctol && multiplierChange <= 1e-5 * lamMax) {
+    opts.trace?.({ outer, innerTol, newtonIterations: r.iterations, evaluations: r.evaluations, viol, rho: rhoUsed, message: r.message });
+    if (viol <= ctol && compl <= ctol * lamMax) {
       if (innerTol <= pgtol) break;
-      viol = 0; // constraints satisfied but inner solve was loose: one more tight pass
+      viol = 0; // feasible, but the inner solve was loose: one more tight pass
       continue;
     }
-    if (viol > 0.25 * prevViol) {
+    // Raise the penalty only while infeasible and not improving fast enough.
+    if (viol > ctol && viol > 0.25 * prevViol) {
       // Penalty at its cap and violation no longer shrinking: the constraints
       // cannot be met (e.g. a temperature cap below what inertia allows).
       if (pen.rho >= 1e8 && viol > 0.9 * prevViol && ++stagnant >= 3) break;

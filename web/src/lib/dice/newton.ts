@@ -9,10 +9,20 @@
  */
 import type { ObjectiveGrad } from "./lbfgsb";
 
+/** A model of the Hessian at x: finite differences of the gradient of a
+ * smooth function `fg`, plus an exact term added by `addTo` (used for
+ * penalty terms whose kinks would spoil finite differences). */
+export interface HessianModel {
+  fg: ObjectiveGrad;
+  addTo?: (H: Float64Array, free: number[]) => void;
+}
+
 export interface NewtonOptions {
   maxIter?: number;     // default 200
   pgtol?: number;       // stop when max |P(x - g) - x| < pgtol (default 1e-11)
   fdStep?: number;      // relative finite-difference step for the Hessian (default 1e-7)
+  /** Build the Hessian from this model instead of differencing `fg` itself. */
+  hessianModel?: (x: Float64Array) => HessianModel;
 }
 
 export interface NewtonResult {
@@ -61,7 +71,7 @@ export function minimizeBoxNewton(fg: ObjectiveGrad, x0: ArrayLike<number>, lo: 
   const maxIter = opts.maxIter ?? 200, pgtol = opts.pgtol ?? 1e-11, rel = opts.fdStep ?? 1e-7;
   const clamp = (v: number, i: number) => Math.min(hi[i], Math.max(lo[i], v));
   const x = Float64Array.from(x0, clamp);
-  const g = new Float64Array(n), gp = new Float64Array(n), xt = new Float64Array(n), gt = new Float64Array(n);
+  const g = new Float64Array(n), g0 = new Float64Array(n), gp = new Float64Array(n), xt = new Float64Array(n), gt = new Float64Array(n);
   const H = new Float64Array(n * n), A = new Float64Array(n * n);
   const d = new Float64Array(n), rhs = new Float64Array(n);
   const free: number[] = [];
@@ -83,21 +93,26 @@ export function minimizeBoxNewton(fg: ObjectiveGrad, x0: ArrayLike<number>, lo: 
     }
     const k = free.length;
 
-    // Finite-difference Hessian columns for free variables.
+    // Finite-difference Hessian columns for free variables (of the model's
+    // smooth function if one is given), then any exact extra term.
+    const model = opts.hessianModel?.(x);
+    const hfg = model?.fg ?? fg;
+    if (model) { hfg(x, g0); evaluations++; } else g0.set(g);
     let hdiagMax = 0;
     for (let c = 0; c < k; c++) {
       const j = free[c];
       let h = rel * Math.max(1, Math.abs(x[j]));
       if (x[j] + h > hi[j]) h = -h;
       xt.set(x); xt[j] = x[j] + h;
-      const ft = fg(xt, gp); evaluations++;
-      if (!Number.isFinite(ft)) { h = -h; xt[j] = x[j] + h; fg(xt, gp); evaluations++; }
-      for (let r = 0; r < k; r++) H[r * k + c] = (gp[free[r]] - g[free[r]]) / h;
+      const ft = hfg(xt, gp); evaluations++;
+      if (!Number.isFinite(ft)) { h = -h; xt[j] = x[j] + h; hfg(xt, gp); evaluations++; }
+      for (let r = 0; r < k; r++) H[r * k + c] = (gp[free[r]] - g0[free[r]]) / h;
     }
     for (let r = 0; r < k; r++) for (let c = r + 1; c < k; c++) {
       const v = 0.5 * (H[r * k + c] + H[c * k + r]);
       H[r * k + c] = v; H[c * k + r] = v;
     }
+    model?.addTo?.(H, free);
     for (let r = 0; r < k; r++) hdiagMax = Math.max(hdiagMax, Math.abs(H[r * k + r]));
 
     // Regularize until positive definite, then solve H d = -g on the free set.
