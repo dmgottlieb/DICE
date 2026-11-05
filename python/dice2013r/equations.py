@@ -146,8 +146,14 @@ def interest_rate(cpc, cpc_next, prstp, elasmu, tstep=5.0):
 
 # --- Utility ----------------------------------------------------------------
 
-def period_utility(c, l, elasmu):
-    """PERIODUEQ: PERIODU = ((C*1000/L)**(1-elasmu) - 1)/(1-elasmu) - 1."""
+def period_utility(c, l, elasmu, log=None):
+    """PERIODUEQ: PERIODU = ((C*1000/L)**(1-elasmu) - 1)/(1-elasmu) - 1.
+
+    The GAMS formula is 0/0 at elasmu = 1; there we use its limit, log(C*1000/L) - 1.
+    """
+    if abs(1 - elasmu) < 1e-12:
+        log = log or (lambda x: __import__("numpy").log(x))
+        return log(c * 1000 / l) - 1
     return ((c * 1000 / l) ** (1 - elasmu) - 1) / (1 - elasmu) - 1
 
 

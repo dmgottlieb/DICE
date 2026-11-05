@@ -64,6 +64,10 @@ describe("hand-computed checks", () => {
     }
     expect(eq.miuFromCarbonPrice(1, 344, 1, 2.8)).toBeCloseTo(0.038976323, 9);
   });
+  it("log utility at elasmu = 1 (limit of the GAMS formula)", () => {
+    expect(eq.periodUtility(7, 1000, 1)).toBeCloseTo(Math.log(7) - 1, 14);
+    expect(eq.periodUtility(7, 1000, 1 + 1e-7)).toBeCloseTo(Math.log(7) - 1, 6);
+  });
   it("unit conversion", () => expect(eq.emissionsToCarbon(3.666)).toBeCloseTo(5, 14));
   it("temperature converges to climate sensitivity at doubled CO2", () => {
     let tatm = 0.8, tocean = 0.0068;

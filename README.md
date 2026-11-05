@@ -11,3 +11,11 @@
 <p>For a longer description, see the User's Manual for DICE-2013R, Second edition, by William Nordhaus with Paul Sztorc (2013), available in the documentation folder.</p>
 
 <p>For those who are beginning their journey, bon voyage!</p>
+
+<h2>Reimplementations in this fork</h2>
+
+<ul>
+<li><code>reference/</code>: the GAMS solutions embedded in the Excel workbook, extracted to JSON (the ground truth for all tests).</li>
+<li><code>python/</code>: a Python/Pyomo/Ipopt transcription of <code>DICE2013R_110513_vanilla.gms</code>, tested equation by equation against GAMS. See <code>python/README.md</code>.</li>
+<li><code>web/</code>: an interactive browser version that solves the model live as you change assumptions, tested against GAMS, the Python version, and in a real browser. See <code>web/README.md</code>.</li>
+</ul>

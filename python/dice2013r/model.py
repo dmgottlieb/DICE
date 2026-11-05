@@ -105,7 +105,7 @@ def build_model(ex: Exogenous) -> pyo.ConcreteModel:
 
     # Utility
     m.cemutotpereq = c(lambda m, t: m.CEMUTOTPER[t] == eq.discounted_period_utility(m.PERIODU[t], ex.l[t], ex.rr[t]))
-    m.periodueq = c(lambda m, t: m.PERIODU[t] == eq.period_utility(m.C[t], ex.l[t], p.elasmu))
+    m.periodueq = c(lambda m, t: m.PERIODU[t] == eq.period_utility(m.C[t], ex.l[t], p.elasmu, log=pyo.log))
     m.util = pyo.Constraint(expr=m.UTILITY == eq.welfare(
         sum(m.CEMUTOTPER[t] for t in m.T), p.scale1, p.scale2, p.tstep))
     m.obj = pyo.Objective(expr=m.UTILITY, sense=pyo.maximize)

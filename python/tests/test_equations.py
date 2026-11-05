@@ -195,3 +195,7 @@ def test_log_utility_limit_is_continuous():
     # (c^(1-a) - 1)/(1-a) -> log(c) as a -> 1
     c = 7.0
     assert eq.period_utility(c, 1000.0, 1.0 + 1e-9) == pytest.approx(math.log(c) - 1, rel=1e-6)
+
+
+def test_log_utility_at_elasmu_one():
+    assert eq.period_utility(7.0, 1000.0, 1.0) == pytest.approx(math.log(7.0) - 1, rel=1e-15)

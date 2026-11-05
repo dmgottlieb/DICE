@@ -68,9 +68,11 @@ export const interestRate = (cpc: number, cpcNext: number, prstp: number, elasmu
   (1 + prstp) * (cpcNext / cpc) ** (elasmu / tstep) - 1;
 
 // Utility
-/** PERIODUEQ */
+/** PERIODUEQ. The GAMS formula is 0/0 at elasmu = 1; there we use its limit, log(cpc) - 1. */
 export const periodUtility = (c: number, l: number, elasmu: number) =>
-  (((c * 1000) / l) ** (1 - elasmu) - 1) / (1 - elasmu) - 1;
+  Math.abs(1 - elasmu) < 1e-12
+    ? Math.log((c * 1000) / l) - 1
+    : (((c * 1000) / l) ** (1 - elasmu) - 1) / (1 - elasmu) - 1;
 /** CEMUTOTPEREQ */
 export const discountedPeriodUtility = (periodu: number, l: number, rr: number) => periodu * l * rr;
 /** UTIL */

@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte", "test/**/*.ts", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.svelte", "test/**/*.ts", "e2e/**/*.ts", "vite.config.ts", "playwright.config.ts"]
 }

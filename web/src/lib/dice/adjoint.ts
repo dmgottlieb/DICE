@@ -8,7 +8,7 @@
  * social cost of carbon follows.
  */
 import type { Exogenous } from "./exogenous";
-import { CO2_PER_C } from "./equations";
+import { CO2_PER_C, periodUtility } from "./equations";
 
 /** Augmented-Lagrangian data for inequality constraints g <= 0, with
  * g = CCA/fosslim - 1 and g = TATM/tatm_up - 1 (normalized). */
@@ -75,8 +75,7 @@ export class Evaluator {
       Y[i] = YG[i] * (1 - DF[i]) - ab;
       C[i] = Y[i] - s[i] * Y[i];
       if (!(C[i] > 0) || !(K[i] > 0)) feasible = false;
-      const cpc = (1000 * C[i]) / ex.l[i];
-      const u = (cpc ** (1 - al) - 1) / (1 - al) - 1;
+      const u = periodUtility(C[i], ex.l[i], al);
       total += u * ex.l[i] * ex.rr[i];
       if (i + 1 < n) {
         K[i + 1] = dkf * K[i] + p.tstep * s[i] * Y[i];

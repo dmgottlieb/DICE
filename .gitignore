@@ -220,3 +220,5 @@ pip-log.txt
 __pycache__/
 .pytest_cache/
 node_modules/
+test-results/
+playwright-report/

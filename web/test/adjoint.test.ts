@@ -80,6 +80,19 @@ describe("gradient vs finite differences", () => {
     }
   });
 
+  it("at elasmu = 1 (log utility)", () => {
+    const p = withParams({ elasmu: 1 });
+    const ev = new Evaluator(computeExogenous(p));
+    const { miu, s } = controls(p, 1);
+    const r = ev.evaluate(miu, s);
+    const gm = Float64Array.from(r.gradMIU), gs = Float64Array.from(r.gradS);
+    const scale = Math.max(...gm.map(Math.abs), ...gs.map(Math.abs));
+    for (const i of [1, 10, 30, 49]) {
+      expect(Math.abs(gm[i] - fd(ev, miu, s, "miu", i))).toBeLessThan(1e-6 * scale);
+      expect(Math.abs(gs[i] - fd(ev, miu, s, "s", i))).toBeLessThan(1e-6 * scale);
+    }
+  });
+
   it("with damages switched off (Hotelling step)", () => {
     const ex = computeExogenous();
     const ev = new Evaluator(ex);

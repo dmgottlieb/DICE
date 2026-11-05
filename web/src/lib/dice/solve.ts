@@ -85,12 +85,27 @@ function optimize(prob: Problem, start: Controls, opts: SolveOptions) {
     freeS.forEach((i, k) => (s[i] = x[freeM.length + k]));
   };
 
-  // Make sure the start is feasible for the objective (e.g. positive consumption).
-  unpack(Float64Array.from(x0, (v, k) => Math.min(hi[k], Math.max(lo[k], v))));
-  if (!Number.isFinite(ev.evaluate(miu, s, undefined, damagesOn).J)) {
+  // Make sure the start is feasible for the objective (positive consumption):
+  // try the given start, then the default guess, then maximum abatement (which
+  // keeps temperatures, and so damages, as low as possible).
+  const feasible = (xv: Float64Array) => {
+    unpack(Float64Array.from(xv, (v, k) => Math.min(hi[k], Math.max(lo[k], v))));
+    return Number.isFinite(ev.evaluate(miu, s, undefined, damagesOn).J);
+  };
+  if (!feasible(x0)) {
     const g = initialGuess(ex);
-    freeM.forEach((i, k) => (x0[k] = g.miu[i]));
-    freeS.forEach((i, k) => (x0[freeM.length + k] = g.s[i]));
+    const candidates = [
+      (i: number, isM: boolean) => (isM ? g.miu[i] : g.s[i]),
+      (i: number, isM: boolean) => (isM ? ex.miu_up[i] : g.s[i]),
+      (i: number, isM: boolean) => (isM ? ex.miu_up[i] : 0.1),
+    ];
+    let found = false;
+    for (const c of candidates) {
+      freeM.forEach((i, k) => (x0[k] = c(i, true)));
+      freeS.forEach((i, k) => (x0[freeM.length + k] = c(i, false)));
+      if (feasible(x0)) { found = true; break; }
+    }
+    if (!found) throw new Error("No feasible starting point: output turns negative even with maximum abatement (damages too large).");
   }
 
   const pen: Penalty = { rho: 100, lamCCA: new Float64Array(n), lamTATM: new Float64Array(n) };
