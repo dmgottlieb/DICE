@@ -213,3 +213,10 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+
+#############
+## DICE reimplementations
+#############
+__pycache__/
+.pytest_cache/
+node_modules/
