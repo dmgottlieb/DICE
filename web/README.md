@@ -17,8 +17,15 @@ sliders then adjust it further. Links carry the scenario and changes, e.g.
 cd web
 npm install
 npm run dev          # http://localhost:5173
-npm run build        # static site in dist/ (relative paths, so it can be hosted anywhere, e.g. GitHub Pages)
+npm run build        # static site in dist/ (relative paths, so it can be hosted anywhere)
 ```
+
+### GitHub Pages
+
+`.github/workflows/pages.yml` publishes the app after CI passes on `master`
+(or when started by hand from the Actions tab). One-time setup: in the
+repository, Settings → Pages → Source: "GitHub Actions". The site is then at
+`https://<owner>.github.io/<repo>/`.
 
 ## Test
 
