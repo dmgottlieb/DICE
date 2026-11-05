@@ -5,6 +5,8 @@ import { DEFAULT, withParams } from "../src/lib/dice/params";
 import { solveBaseline, solveOptimal } from "../src/lib/dice/solve";
 import { baselineParams } from "../src/lib/ui/controls";
 import { summarize } from "../src/lib/ui/summary";
+import { PRESETS, preset } from "../src/lib/ui/presets";
+import { readFileSync } from "node:fs";
 
 const dollars = (v: number) => "$" + v.toFixed(1);
 
@@ -57,6 +59,37 @@ test("rapid slider movement ends on the result for the final position", async ({
   await expect(page.getByTestId("tile-scc")).toHaveText(dollars(expected.scc2015));
   await waitSolved(page);
   await expect(page.getByTestId("tile-scc")).toHaveText(dollars(expected.scc2015));
+});
+
+// Every scenario preset must show the published GAMS numbers.
+for (const pr of PRESETS) {
+  test(`scenario "${pr.label}" reproduces the GAMS sheet`, async ({ page }) => {
+    await page.goto("/");
+    await waitSolved(page);
+    await page.getByTestId("scenario").selectOption(pr.id);
+    await expect(page.getByTestId("scenario-description")).toHaveText(pr.description);
+    const gams = JSON.parse(readFileSync(new URL("../../reference/gams_" + pr.id + ".json", import.meta.url), "utf8")).series;
+    await expect(page.getByTestId("tile-scc")).toHaveText(dollars(gams.SCC[1]));
+    await expect(page.getByTestId("tile-peak-opt")).toHaveText(Math.max(...gams.TATM).toFixed(2) + " °C");
+    await expect(page.locator(".legend li").first()).toHaveText(pr.policyLabel);
+    await waitSolved(page);
+    expect(new URL(page.url()).searchParams.get("scenario")).toBe(pr.id === "opt" ? null : pr.id);
+  });
+}
+
+test("a scenario link restores the scenario plus changes on top of it", async ({ page }) => {
+  await page.goto("/?scenario=copen&t2xco2=3.5");
+  await waitSolved(page);
+  await expect(page.getByTestId("scenario")).toHaveValue("copen");
+  await expect(page.getByTestId("value-t2xco2")).toHaveText("3.5");
+  const p = { ...preset("copen").params, t2xco2: 3.5 };
+  await expect(page.getByTestId("tile-scc")).toHaveText(dollars(summarize(solveOptimal(p)).scc2015));
+  // The cap stays off (the scenario's 15 degree bound is not a cap), and Reset all returns to the default.
+  await expect(page.getByTestId("cap-toggle")).not.toBeChecked();
+  await page.getByRole("button", { name: "Reset all" }).click();
+  await expect(page.getByTestId("scenario")).toHaveValue("opt");
+  await expect(page.getByTestId("tile-scc")).toHaveText("$17.7");
+  expect(new URL(page.url()).search).toBe("");
 });
 
 test("settings load from the URL", async ({ page }) => {

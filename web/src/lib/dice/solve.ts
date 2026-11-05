@@ -255,6 +255,10 @@ export function solveOptimal(p: Params = DEFAULT, opts: SolveOptions = {}): Solu
   const ex = computeExogenous(p);
   const { miuFixed, sFixed } = fixedArrays(ex);
   if (p.fix_miu0) miuFixed[0] = p.miu0;
+  if (p.miu_path) {
+    if (p.miu_path.length !== p.nperiods) throw new Error("miu_path must have one entry per period");
+    p.miu_path.forEach((v, i) => { if (v !== null) miuFixed[i] = v; });
+  }
   const r = optimize({ ex, miuFixed, sFixed, damagesOn: true }, opts.warmStart ?? initialGuess(ex), opts);
   return {
     params: p, exogenous: ex, path: simulate(ex, r.miu, r.s), scc: r.scc, scc_output: r.sccOut, photel: null,

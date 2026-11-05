@@ -30,6 +30,10 @@ export const optimalLongRunSavings = (p: Params) => ((p.dk + 0.004) / (p.dk + 0.
 
 export function participation(p: Params): Float64Array {
   const n = p.nperiods;
+  if (p.partfract_path) {
+    if (p.partfract_path.length !== n) throw new Error("partfract_path must have one value per period");
+    return Float64Array.from(p.partfract_path);
+  }
   const pf = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     const t = i + 1;

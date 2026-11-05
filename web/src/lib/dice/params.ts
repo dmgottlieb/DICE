@@ -20,6 +20,10 @@ export interface Params {
   fix_miu0: boolean; miu_lo: number; tatm_up: number;
   /** Terminal savings rate; null = optlrsav computed from the parameters. */
   fixed_savings: number | null;
+  /** Imported participation fraction per period (Copenhagen scenario); null = the ramp. */
+  partfract_path: number[] | null;
+  /** Control rate fixed per period in the optimal run (null entries free); null = none. */
+  miu_path: (number | null)[] | null;
 }
 
 export const DEFAULT: Readonly<Params> = Object.freeze({
@@ -41,7 +45,12 @@ export const DEFAULT: Readonly<Params> = Object.freeze({
   cca0: 90, miu_cap1_before: 30, nfixsav: 10,
   fix_miu0: true, miu_lo: 0, tatm_up: 40,
   fixed_savings: null,
+  partfract_path: null,
+  miu_path: null,
 });
+
+/** optlrsav at the default parameters (used by the GAMS Stern scenarios). */
+export const optimalLongRunSavingsDefault = ((DEFAULT.dk + 0.004) / (DEFAULT.dk + 0.004 * DEFAULT.elasmu + DEFAULT.prstp)) * DEFAULT.gama;
 
 export function withParams(changes: Partial<Params>, base: Readonly<Params> = DEFAULT): Params {
   return { ...base, ...changes };

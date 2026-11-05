@@ -192,13 +192,26 @@ def _solve(m, tol, tee):
     return status, term
 
 
+def fixed_controls(p: Params) -> dict[int, float]:
+    """Periods (0-indexed) whose control rate is fixed in the optimal run."""
+    fixed = {0: p.miu0} if p.fix_miu0 else {}
+    if p.miu_path is not None:
+        if len(p.miu_path) != p.nperiods:
+            raise ValueError("miu_path must have one entry per period")
+        fixed.update({t: float(v) for t, v in enumerate(p.miu_path) if v is not None})
+    return fixed
+
+
 def solve_optimal(p: Params = DEFAULT, tol: float = 1e-10, tee: bool = False) -> Solution:
     ex = compute(p)
     m = build_model(ex)
     miu, s = initial_guess(ex)
+    fixed = fixed_controls(p)
+    for t, v in fixed.items():
+        miu[t] = v
     warm_start(m, simulate(ex, miu, s))
-    if p.fix_miu0:
-        m.MIU[0].fix(p.miu0)
+    for t, v in fixed.items():
+        m.MIU[t].fix(v)
     status, term = _solve(m, tol, tee)
     return _solution(m, ex, None, status, term)
 

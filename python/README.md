@@ -12,7 +12,7 @@ cd python
 pip install -e '.[test]'
 idaes get-extensions      # one way to get an Ipopt binary (pip install idaes-pse first),
                           # or put `ipopt` on PATH, or set $IPOPT
-pytest                    # ~440 tests, ~5 s
+pytest                    # ~600 tests, ~8 s
 ```
 
 ```python
@@ -34,6 +34,7 @@ print(opt.path.TATM, opt.scc)
 | `equations.py` | One function per GAMS equation; works on floats, numpy arrays and Pyomo expressions |
 | `simulate.py` | Forward simulation of all variables given control paths MIU(t), S(t) |
 | `model.py` | Pyomo model, optimal and baseline (Hotelling) runs, social cost of carbon |
+| `scenarios.py` | The GAMS scenario driver's runs (optimal, 2 °C limit, Stern, calibrated Stern, Copenhagen) as parameter sets |
 
 ## Reference data and tests
 
@@ -47,9 +48,13 @@ into `reference/gams_*.json`. The tests check, against those numbers:
   must reproduce the GAMS solution, for four scenarios.
 - **Simulation**: given the GAMS controls, every variable reproduces GAMS to about 1e-9,
   and accounting identities and carbon mass balance hold.
-- **Optimization**: optimal, baseline, 2°C-limit and Stern runs match GAMS to about 1e-7
-  relative (welfare to 1e-11); bounds hold; the SCC matches a finite-difference
-  envelope-theorem check; comparative statics have the expected signs.
+- **Optimization**: the optimal, baseline, 2°C-limit, Stern, calibrated-Stern and
+  Copenhagen runs match GAMS to about 1e-7 relative (a few 1e-6 near the end of
+  calibrated Stern; welfare to 1e-11). Bounds hold, the SCC matches a
+  finite-difference envelope-theorem check, and comparative statics have the
+  expected signs.
+- **Scenario data**: the Copenhagen participation and pledge tables are checked
+  against `Include/CopenPartFrac.gms` and `Include/ExogenECR.gms`.
 
 ## Differences from GAMS, and GAMS quirks found along the way
 
@@ -68,7 +73,11 @@ into `reference/gams_*.json`. The tests check, against those numbers:
    leaves `MIU.lo = 0.0001` and MIU(2010) free, and its Stern run recomputes
    `optlrsav` without re-fixing the terminal savings rate. The parameters
    `miu_lo`, `fix_miu0` and `fixed_savings` reproduce this
-   (see `tests/conftest.py::SCENARIO_PARAMS`).
+   (see `dice2013r/scenarios.py`). Calibrated Stern also fixes MIU(2010) at
+   0.038976 and starts from TATM(2010) = 0.83, and Copenhagen fixes the control
+   rate after 2010 and imports participation (parameters `miu_path`,
+   `partfract_path`). The Copenhagen include lines are commented out in the
+   driver, but the Excel sheet was produced with them.
 4. **Baseline.** As in vanilla, the carbon price is *fixed* for periods
    1..45 at max(Hotelling rent, $1 growing 2%/yr); the driver uses an upper
    bound instead, which binds. In this calibration the fossil-fuel limit binds

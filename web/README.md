@@ -5,6 +5,12 @@ climate sensitivity, damages, abatement costs, growth, a temperature cap) and th
 optimal policy and the "no new policy" baseline are re-solved in the browser.
 No server is involved.
 
+A scenario picker starts from any of the GAMS scenario-driver runs: DICE
+optimal, 2 °C limit, Stern Review discounting, recalibrated Stern, and
+Copenhagen pledges. Each reproduces its published GAMS numbers, and the
+sliders then adjust it further. Links carry the scenario and changes, e.g.
+`?scenario=copen&t2xco2=3.5`.
+
 ## Run
 
 ```bash
@@ -17,10 +23,13 @@ npm run build        # static site in dist/ (relative paths, so it can be hosted
 ## Test
 
 ```bash
-npm test             # ~480 unit tests (Vitest), ~5 s
+npm test             # ~600 unit tests (Vitest), ~5 s
 npm run check        # TypeScript + Svelte type check
-npm run test:e2e     # 12 browser tests (Playwright; builds and serves the app)
+npm run test:e2e     # 18 browser tests (Playwright; builds and serves the app)
 ```
+
+All of these, plus the Python suite, run in GitHub Actions on every push and
+pull request (`.github/workflows/ci.yml`).
 
 ## How it works
 
@@ -31,6 +40,7 @@ npm run test:e2e     # 12 browser tests (Playwright; builds and serves the app)
 | `src/lib/dice/adjoint.ts` | Exact gradient of welfare with respect to every control (reverse pass) |
 | `src/lib/dice/lbfgsb.ts`, `newton.ts` | Box-constrained optimizers: projected L-BFGS warm-up, then projected Newton |
 | `src/lib/dice/solve.ts` | Optimal and baseline (Hotelling) runs, state constraints (augmented Lagrangian), SCC |
+| `src/lib/ui/presets.ts` | The GAMS scenarios (tested to be identical to `python/dice2013r/scenarios.py`) |
 | `src/lib/ui/*`, `src/components/*`, `src/App.svelte` | Controls, charts, table, CSV, URL state |
 | `src/lib/worker.ts` | Web Worker that runs the solver off the main thread |
 

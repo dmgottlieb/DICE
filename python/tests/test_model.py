@@ -34,7 +34,7 @@ def solve(scenario):
     return M.solve_baseline(p) if scenario == "base" else M.solve_optimal(p)
 
 
-@pytest.fixture(scope="module", params=["opt", "base", "lim2", "stern"])
+@pytest.fixture(scope="module", params=list(SCENARIO_PARAMS))
 def solved(request):
     return request.param, solve(request.param), load_reference(request.param)
 
@@ -65,6 +65,8 @@ def test_controls_match_gams(solved, name):
 
 def test_final_period_control_near_zero(solved):
     _, sol, ref = solved
+    if 59 in M.fixed_controls(sol.exogenous.params):
+        pytest.skip("final-period control is fixed in this scenario")
     lo = sol.exogenous.params.miu_lo
     assert ref["series"]["MIU"][-1] == pytest.approx(lo, abs=1e-8)
     assert lo <= sol.path.MIU[-1] < lo + 2e-3

@@ -99,6 +99,11 @@ def other_forcing(p: Params) -> np.ndarray:
 
 
 def participation(p: Params) -> np.ndarray:
+    if p.partfract_path is not None:
+        pf = np.asarray(p.partfract_path, dtype=float)
+        if pf.shape != (p.nperiods,):
+            raise ValueError("partfract_path must have one value per period")
+        return pf.copy()
     t = np.arange(1, p.nperiods + 1)
     pf = np.where(
         t > p.periodfullpart,

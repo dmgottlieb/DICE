@@ -114,8 +114,13 @@ export const CAP_CONTROL = {
 
 export const GROUPS = [...new Set(CONTROLS.map((c) => c.group))];
 
-/** Baseline runs ignore a temperature cap (it is a policy, the baseline is "no new policy"). */
-export const baselineParams = (p: Params): Params => ({ ...p, tatm_up: NO_CAP });
+/** The baseline is "no new policy": no temperature cap, and none of a
+ * scenario's policy paths (pledged control rates, participation). */
+export const baselineParams = (p: Params): Params => ({ ...p, tatm_up: NO_CAP, miu_path: null, partfract_path: null });
+
+/** A temperature bound counts as a cap if it is within the cap slider's range
+ * (the GAMS scenarios use a non-binding bound of 15 °C). */
+export const hasCap = (p: Params) => p.tatm_up <= CAP_CONTROL.max;
 
 export function isDefault(c: Control, p: Params): boolean {
   return Math.abs(c.get(p) - c.get(DEFAULT)) < c.step / 2;

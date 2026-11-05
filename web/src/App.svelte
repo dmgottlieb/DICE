@@ -4,8 +4,9 @@
   import DataTable from "./components/DataTable.svelte";
   import LineChart from "./components/LineChart.svelte";
   import StatTile from "./components/StatTile.svelte";
-  import { DEFAULT, type Params } from "./lib/dice/params";
-  import { CAP_CONTROL, CONTROLS, GROUPS, NO_CAP } from "./lib/ui/controls";
+  import type { Params } from "./lib/dice/params";
+  import { CAP_CONTROL, CONTROLS, GROUPS, NO_CAP, hasCap } from "./lib/ui/controls";
+  import { PRESETS, preset } from "./lib/ui/presets";
   import type { Results } from "./lib/ui/session";
   import { SolverClient } from "./lib/ui/solver-client";
   import { consumptionEquivalent, summarize } from "./lib/ui/summary";
@@ -14,8 +15,9 @@
   import SolverWorker from "./lib/worker?worker";
 
   const initial = decodeParams(location.search);
-  let params = $state<Params>(initial);
-  let capValue = $state(initial.tatm_up < NO_CAP ? initial.tatm_up : 2);
+  let presetId = $state(initial.presetId);
+  let params = $state<Params>(initial.params);
+  let capValue = $state(hasCap(initial.params) ? initial.params.tatm_up : 2);
   let results = $state<Results | null>(null);
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -38,18 +40,32 @@
     return () => worker.terminate();
   });
 
+  // Keep the URL in step with the current scenario and settings.
+  $effect(() => {
+    const q = encodeParams(params, presetId);
+    history.replaceState(null, "", q ? "?" + q : location.pathname);
+  });
+
   function update(p: Params) {
     params = p;
-    const q = encodeParams(p);
-    history.replaceState(null, "", q ? "?" + q : location.pathname);
     client?.request($state.snapshot(p));
   }
 
-  const capOn = $derived(params.tatm_up < NO_CAP);
-  const changed = $derived(encodeParams(params) !== "");
+  function choosePreset(id: string) {
+    presetId = id;
+    const pp = preset(id).params;
+    capValue = hasCap(pp) ? pp.tatm_up : 2;
+    update({ ...pp });
+  }
+
+  const current = $derived(preset(presetId));
+  const capOn = $derived(hasCap(params));
+  // Turning the cap off restores the scenario's own (non-binding) bound.
+  const capOff = $derived(hasCap(current.params) ? NO_CAP : current.params.tatm_up);
+  const changed = $derived(encodeParams(params, presetId) !== "");
 
   const sources = $derived<SeriesSource[]>(results ? [
-    { id: "opt", label: "Optimal policy", sol: results.optimal },
+    { id: "opt", label: current.policyLabel, sol: results.optimal },
     { id: "base", label: "No new policy (baseline)", sol: results.baseline },
     ...(changed ? [{ id: "ref", label: "Optimal, DICE defaults", sol: results.reference }] : []),
   ] : []);
@@ -96,7 +112,20 @@
     <div class="aside-head">
       <h2>Assumptions</h2>
       {#if changed}
-        <button type="button" onclick={() => { capValue = 2; update({ ...DEFAULT }); }}>Reset all</button>
+        <button type="button" onclick={() => choosePreset("opt")}>Reset all</button>
+      {/if}
+    </div>
+    <div class="scenario">
+      <label for="scenario">Scenario</label>
+      <select id="scenario" data-testid="scenario" value={presetId}
+        onchange={(e) => choosePreset((e.currentTarget as HTMLSelectElement).value)}>
+        {#each PRESETS as pr (pr.id)}
+          <option value={pr.id}>{pr.label}</option>
+        {/each}
+      </select>
+      <p class="help" data-testid="scenario-description">{current.description}</p>
+      {#if presetId !== "opt"}
+        <p class="help">Settings below start from this scenario; the GAMS scenario runs are reproduced exactly.</p>
       {/if}
     </div>
     {#each GROUPS as g}
@@ -109,7 +138,7 @@
           <div class="control">
             <label class="check">
               <input type="checkbox" checked={capOn} data-testid="cap-toggle"
-                onchange={(e) => update({ ...params, tatm_up: (e.currentTarget as HTMLInputElement).checked ? capValue : NO_CAP })} />
+                onchange={(e) => update({ ...params, tatm_up: (e.currentTarget as HTMLInputElement).checked ? capValue : capOff })} />
               {CAP_CONTROL.label}
             </label>
             {#if capOn}
@@ -159,12 +188,12 @@
       <div class="tiles" class:stale={busy}>
         <StatTile label="Social cost of carbon, 2015" testid="tile-scc" value={dollars(sOpt.scc2015)}
           note={"per t CO₂, 2005 dollars" + (changed && sRef ? " · DICE default " + dollars(sRef.scc2015) : "")} />
-        <StatTile label="Peak warming, optimal policy" testid="tile-peak-opt" value={sOpt.peakTemp.toFixed(2) + " °C"}
+        <StatTile label={"Peak warming, " + current.short} testid="tile-peak-opt" value={sOpt.peakTemp.toFixed(2) + " °C"}
           note={"in " + sOpt.peakYear + " · " + sOpt.temp2100.toFixed(2) + " °C in 2100"} />
         <StatTile label="Peak warming, no new policy" testid="tile-peak-base"
           value={sBase ? sBase.peakTemp.toFixed(2) + " °C" : "–"}
           note={sBase ? "in " + sBase.peakYear + " · " + sBase.temp2100.toFixed(2) + " °C in 2100" : "no solution"} />
-        <StatTile label="Gain from optimal policy" testid="tile-gain"
+        <StatTile label={"Gain from " + current.short} testid="tile-gain"
           value={Number.isFinite(ce) ? ce.toFixed(2) + "%" : "–"}
           note="of consumption, every year, forever (welfare-equivalent)" />
       </div>
@@ -245,6 +274,8 @@
     padding: 12px 16px; align-self: start; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto;
   }
   .aside-head { display: flex; justify-content: space-between; align-items: center; }
+  .scenario { padding: 8px 0 4px; display: grid; gap: 4px; }
+  .scenario label { font-weight: 500; }
   h2 { font-size: 17px; margin: 4px 0; }
   h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 18px 0 0; }
   .control { padding: 10px 0 8px; }

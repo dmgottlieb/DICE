@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
-import { DEFAULT, withParams, type Params } from "../src/lib/dice/params";
+import { DEFAULT, type Params } from "../src/lib/dice/params";
+import { PRESETS } from "../src/lib/ui/presets";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(here, "..", "..");
@@ -23,10 +24,8 @@ export function loadGams(scenario: string): GamsReference {
 
 /** Parameters reproducing each GAMS sheet (see python/tests/conftest.py). */
 export const SCENARIO_PARAMS: Record<string, Params> = {
-  opt: { ...DEFAULT },
   base: { ...DEFAULT },
-  lim2: withParams({ tatm_up: 2, fix_miu0: false, miu_lo: 1e-4 }),
-  stern: withParams({ prstp: 0.001, elasmu: 1.01, fix_miu0: false, miu_lo: 1e-4, tatm_up: 15, fixed_savings: 0.2582781456953642 }),
+  ...Object.fromEntries(PRESETS.map((p) => [p.id, p.params])),
 };
 
 const toNum = (v: number | null | undefined) => (v === null || v === undefined ? NaN : v);

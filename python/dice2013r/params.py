@@ -100,12 +100,22 @@ class Params:
     # Terminal savings rate. None = optlrsav computed from the parameters.
     # (The GAMS scenario driver's Stern run keeps the default-parameter value.)
     fixed_savings: float | None = None
+    # Imported participation fraction per period (overrides the ramp built from
+    # partfract2010/partfractfull/periodfullpart). Used by the Copenhagen scenario.
+    partfract_path: tuple[float, ...] | None = None
+    # Control rate fixed per period (None entries stay free) in the optimal run.
+    # Used by the Copenhagen scenario (pledged reductions) and calibrated Stern.
+    miu_path: tuple[float | None, ...] | None = None
 
     def with_(self, **changes) -> "Params":
         return replace(self, **changes)
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        for k in ("partfract_path", "miu_path"):
+            if d[k] is not None:
+                d[k] = list(d[k])
+        return d
 
     @classmethod
     def field_names(cls) -> list[str]:

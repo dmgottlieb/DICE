@@ -6,22 +6,15 @@ import pytest
 
 from dice2013r import DEFAULT
 from dice2013r.model import find_ipopt
+from dice2013r.scenarios import SCENARIOS
 
 ROOT = Path(__file__).resolve().parents[2]
 REFERENCE = ROOT / "reference"
 VANILLA_GMS = ROOT / "models" / "gams" / "DICE2013R_110513_vanilla.gms"
 
-# Parameter settings that reproduce each GAMS scenario sheet. The non-vanilla
-# runs come from DICE2013_MUP_120913.gms, where the cleanup after the optimal
-# run leaves MIU.lo = 0.0001 and MIU(2010) free, and the Stern run keeps the
-# default-parameter terminal savings rate.
-SCENARIO_PARAMS = {
-    "opt": DEFAULT,
-    "base": DEFAULT,
-    "lim2": DEFAULT.with_(tatm_up=2.0, fix_miu0=False, miu_lo=1e-4),
-    "stern": DEFAULT.with_(prstp=0.001, elasmu=1.01, fix_miu0=False, miu_lo=1e-4,
-                           tatm_up=15.0, fixed_savings=0.2582781456953642),
-}
+# Parameter settings that reproduce each GAMS scenario sheet (see
+# dice2013r/scenarios.py for the scenario driver's carried-over state).
+SCENARIO_PARAMS = {"base": DEFAULT, **SCENARIOS}
 
 
 def load_reference(scenario: str) -> dict:
@@ -35,7 +28,7 @@ def load_reference(scenario: str) -> dict:
 
 @pytest.fixture(scope="session")
 def ref():
-    return {s: load_reference(s) for s in ["opt", "base", "lim2", "stern"]}
+    return {s: load_reference(s) for s in SCENARIO_PARAMS}
 
 
 def assert_series_close(actual, expected, name, rtol=1e-8, atol=1e-10, periods=slice(None)):

@@ -105,7 +105,12 @@ def optimal_fixtures() -> dict:
         return {"path": _path_dict(sol.path), "scc": _arr(sol.scc), "scc_output": _arr(sol.scc_output),
                 "photel": None if sol.photel is None else _arr(sol.photel)}
 
-    out = {"optimal": [], "baseline": []}
+    from .scenarios import SCENARIOS
+
+    out = {"optimal": [], "baseline": [], "scenarios": []}
+    # The GAMS scenarios: the web presets must use identical parameters.
+    for name, p in SCENARIOS.items():
+        out["scenarios"].append({"name": name, "params": p.to_dict(), **sol_dict(solve_optimal(p))})
     for name, p in OPTIMAL_CASES.items():
         out["optimal"].append({"name": name, "params": p.to_dict(), **sol_dict(solve_optimal(p))})
     for name in ["default", "sensitive_climate"]:
